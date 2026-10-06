@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>플래피 버디 (Flappy Buddy)</title>
+    <!-- Tailwind CSS for UI Layouts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        body {
+            font-family: 'Jua', sans-serif, system-ui;
+            background-color: #0d0714;
+            color: #ffffff;
+            touch-action: manipulation;
+            overflow: hidden;
+        }
+
+        /* Glassmorphism UI Style */
+        .glass-panel {
+            background: rgba(42, 18, 62, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 2px solid rgba(216, 180, 254, 0.3);
+            box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        /* Animated Title Effect */
+        .bounce-title {
+            animation: bounceSlow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes bounceSlow {
+            0% { transform: translateY(0px) rotate(-1deg); }
+            100% { transform: translateY(-12px) rotate(1deg); }
+        }
+
+        /* Sparkle Pulse */
+        .pulse-text {
+            animation: pulseGlow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(0.97); }
+        }
+
+        /* Button Hover Shadows */
+        .btn-game {
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 6px 0 #7e22ce, 0 10px 20px rgba(0,0,0,0.3);
+        }
+        .btn-game:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #7e22ce, 0 4px 10px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-0 sm:p-4">
+
+    <!-- Main Outer Container -->
+    <div class="relative w-full h-screen sm:h-[680px] sm:w-[420px] sm:rounded-3xl overflow-hidden shadow-2xl border-0 sm:border-4 border-purple-500/30 flex flex-col items-center justify-center bg-slate-900">
+
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas" class="absolute inset-0 w-full h-full cursor-pointer z-0"></canvas>
+
+        <!-- Sound Toggle Button -->
+        <button id="soundToggle" class="absolute top-4 right-4 z-30 p-3 rounded-full glass-panel text-xl hover:scale-110 active:scale-95 transition-transform" title="음향 온/오프">
+            🔊
+        </button>
+
+        <!-- In-Game HUD Score & Lives Display -->
+        <div id="hudScore" class="absolute top-6 left-1/2 -translate-x-1/2 z-20 hidden flex-col items-center pointer-events-none">
+            <div id="hudLives" class="text-2xl mb-1 flex items-center space-x-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                <span>❤️</span><span>❤️</span><span>❤️</span>
+            </div>
+            <span id="currentScore" class="text-6xl font-black text-amber-200 drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] tracking-wider">0</span>
+        </div>
+
+        <!-- START SCREEN OVERLAY -->
+        <div id="startScreen" class="absolute inset-0 z-20 flex flex-col items-center justify-between p-8 text-center glass-panel rounded-none sm:rounded-3xl transition-opacity duration-300">
+            <div class="mt-8 flex flex-col items-center">
+                <div class="inline-block px-4 py-1.5 rounded-full bg-purple-900/80 border border-purple-400/30 text-purple-200 text-sm mb-4">
+                    ✨ 둥글둥글 토끼의 숲속 모험
+                </div>
+                <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-purple-200 to-amber-200 bounce-title drop-shadow-[0_4px_12px_rgba(168,85,247,0.5)]">
+                    플래피 버디
+                </h1>
+                <p class="text-purple-200/80 text-sm mt-2">Flappy Buddy in Magical Forest</p>
+            </div>
+
+            <!-- Animated Bunny Visual Preview -->
+            <div class="my-auto flex flex-col items-center justify-center">
+                <div class="w-24 h-24 rounded-full bg-pink-200/20 flex items-center justify-center animate-pulse border-2 border-pink-300/40">
+                    <span class="text-6xl transform -rotate-12">🐰</span>
+                </div>
+            </div>
+
+            <div class="w-full mb-6 flex flex-col items-center space-y-4">
+                <div class="pulse-text text-amber-200 font-bold text-lg bg-purple-950/60 px-6 py-2.5 rounded-2xl border border-purple-400/20 shadow-lg">
+                    👆 화면을 터치하거나 <span class="text-pink-300 bg-purple-900/80 px-2 py-0.5 rounded border border-pink-400/30">Space</span> 키를 누르세요!
+                </div>
+                <button id="startBtn" class="btn-game w-full py-4 text-2xl font-black text-purple-950 bg-gradient-to-r from-amber-200 via-pink-200 to-amber-300 rounded-2xl">
+                    게임 시작하기 🚀
+                </button>
+            </div>
+        </div>
+
+        <!-- GAME OVER OVERLAY -->
+        <div id="gameOverScreen" class="absolute inset-0 z-20 hidden flex-col items-center justify-center p-6 text-center glass-panel rounded-none sm:rounded-3xl">
+            <div class="w-full max-w-xs bg-purple-950/80 p-6 rounded-3xl border border-purple-400/30 shadow-2xl flex flex-col items-center">
+                <div class="text-5xl mb-2">💥</div>
+                <h2 class="text-3xl font-black text-pink-300 mb-4 tracking-wide">GAME OVER</h2>
+
+                <!-- Score Board -->
+                <div class="w-full bg-purple-900/50 p-4 rounded-2xl border border-purple-500/20 space-y-3 mb-6">
+                    <div class="flex justify-between items-center text-purple-200">
+                        <span class="text-sm font-medium">이번 점수</span>
+                        <span id="finalScore" class="text-3xl font-black text-amber-300">0</span>
+                    </div>
+                    <div class="h-px bg-purple-500/30 w-full"></div>
+                    <div class="flex justify-between items-center text-purple-200">
+                        <span class="text-sm font-medium">🏆 최고 점수</span>
+                        <span id="bestScore" class="text-2xl font-bold text-pink-200">0</span>
+                    </div>
+                </div>
+
+                <!-- Replay Button -->
+                <button id="restartBtn" class="btn-game w-full py-3.5 text-xl font-black text-purple-950 bg-gradient-to-r from-amber-200 via-pink-200 to-amber-300 rounded-2xl">
+                    다시 하기 🔄
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Native Web Audio Synthesizer for sound effects (No external audio file dependencies)
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+            }
+
+            playFlap() {
+                if (!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(620, this.ctx.currentTime + 0.12);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playScore() {
+                if (!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+                osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.08); // E5
+                osc.frequency.setValueAtTime(783.99, this.ctx.currentTime + 0.16); // G5
+                
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+
+            playCrash() {
+                if (!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.25);
+                
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playHurt() {
+                if (!this.enabled || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.18);
+                
+                gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.18);
+            }
+        }
+
+        const sound = new SoundFX();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Element References
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const hudScore = document.getElementById('hudScore');
+        const hudLives = document.getElementById('hudLives');
+        const currentScoreEl = document.getElementById('currentScore');
+        const finalScoreEl = document.getElementById('finalScore');
+        const bestScoreEl = document.getElementById('bestScore');
+        const startBtn = document.getElementById('startBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const soundToggleBtn = document.getElementById('soundToggle');
+
+        // Game Variables
+        let gameState = 'START'; // 'START', 'PLAYING', 'GAMEOVER'
+        let score = 0;
+        let lives = 3;
+        let invincibilityTimer = 0;
+        let highScore = parseInt(localStorage.getItem('flappy_buddy_best') || '0', 10);
+        let animationFrameId = null;
+
+        // Viewport dimensions
+        let width = 360;
+        let height = 640;
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            width = canvas.width;
+            height = canvas.height;
+        }
+
+        function updateLivesDisplay() {
+            if (!hudLives) return;
+            let heartsHtml = '';
+            for (let i = 0; i < 3; i++) {
+                if (i < lives) {
+                    heartsHtml += '<span class="inline-block transform scale-100 transition-all">❤️</span>';
+                } else {
+                    heartsHtml += '<span class="inline-block opacity-30 filter grayscale">🖤</span>';
+                }
+            }
+            hudLives.innerHTML = heartsHtml;
+        }
+
+        function takeDamage() {
+            if (invincibilityTimer > 0) return;
+            lives--;
+            sound.playHurt();
+            invincibilityTimer = 90; // 1.5초 무적 시간 (60fps 기준)
+            updateLivesDisplay();
+
+            createScoreSparkles(bunny.x, bunny.y);
+
+            if (lives <= 0) {
+                triggerGameOver();
+            }
+        }
+
+        // Bunny Character Object
+        const bunny = {
+            x: 80,
+            y: 300,
+            radius: 20,
+            gravity: 0.38,
+            jumpImpulse: -7.2,
+            velocity: 0,
+            rotation: 0,
+            earOffset: 0,
+            blinkTimer: 0,
+
+            reset() {
+                this.x = width * 0.25;
+                this.y = height * 0.45;
+                this.velocity = 0;
+                this.rotation = 0;
+            },
+
+            flap() {
+                this.velocity = this.jumpImpulse;
+                createJumpParticles(this.x, this.y + this.radius);
+                sound.playFlap();
+            },
+
+            update() {
+                if (invincibilityTimer > 0) {
+                    invincibilityTimer--;
+                }
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+
+                // Rotation based on vertical speed
+                this.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 6, this.velocity * 0.08));
+
+                // Ear jiggle animation
+                this.earOffset = Math.sin(Date.now() * 0.015) * 3;
+
+                // Ceiling boundary check
+                if (this.y - this.radius <= 0) {
+                    this.y = this.radius;
+                    this.velocity = 0;
+                }
+            },
+
+            draw() {
+                // Flash animation during invincibility
+                if (invincibilityTimer > 0 && Math.floor(invincibilityTimer / 6) % 2 === 0) {
+                    return;
+                }
+
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+
+                // 1. Bunny Tail (Fluffy Back Ball)
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(-this.radius + 2, 4, 7, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 2. Ears
+                // Left Ear
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.ellipse(-6, -this.radius - 10 + this.earOffset, 6, 15, -0.15, 0, Math.PI * 2);
+                ctx.fill();
+                // Left Ear Inner Pink
+                ctx.fillStyle = '#ff8fa3';
+                ctx.beginPath();
+                ctx.ellipse(-6, -this.radius - 10 + this.earOffset, 3.5, 10, -0.15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Right Ear
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.ellipse(6, -this.radius - 12 - this.earOffset, 6, 16, 0.15, 0, Math.PI * 2);
+                ctx.fill();
+                // Right Ear Inner Pink
+                ctx.fillStyle = '#ff8fa3';
+                ctx.beginPath();
+                ctx.ellipse(6, -this.radius - 12 - this.earOffset, 3.5, 11, 0.15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 3. Round Main Body
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Subtle body gradient/shadow
+                const bodyGrad = ctx.createRadialGradient(-4, -4, 2, 0, 0, this.radius);
+                bodyGrad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                bodyGrad.addColorStop(0.8, 'rgba(255, 240, 245, 1)');
+                bodyGrad.addColorStop(1, 'rgba(240, 210, 230, 1)');
+                ctx.fillStyle = bodyGrad;
+                ctx.fill();
+
+                // 4. Rosy Cheeks
+                ctx.fillStyle = 'rgba(255, 128, 171, 0.6)';
+                ctx.beginPath();
+                ctx.arc(-11, 4, 5, 0, Math.PI * 2);
+                ctx.arc(11, 4, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 5. Cute Eyes
+                this.blinkTimer += 0.05;
+                const isBlinking = Math.sin(this.blinkTimer) > 0.96;
+
+                if (isBlinking) {
+                    ctx.strokeStyle = '#2d1537';
+                    ctx.lineWidth = 2.5;
+                    ctx.lineCap = 'round';
+                    // Left Eye Closed
+                    ctx.beginPath();
+                    ctx.arc(-7, -2, 3, 0.1 * Math.PI, 0.9 * Math.PI);
+                    ctx.stroke();
+                    // Right Eye Closed
+                    ctx.beginPath();
+                    ctx.arc(7, -2, 3, 0.1 * Math.PI, 0.9 * Math.PI);
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = '#2d1537';
+                    ctx.beginPath();
+                    ctx.arc(-7, -2, 3.2, 0, Math.PI * 2);
+                    ctx.arc(7, -2, 3.2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Eye Shine Particles
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(-8.5, -3.5, 1.2, 0, Math.PI * 2);
+                    ctx.arc(5.5, -3.5, 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 6. Cute Pink Nose & Mouth
+                ctx.fillStyle = '#ff4d6d';
+                ctx.beginPath();
+                ctx.arc(0, 3, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        };
+
+        // Pipes Engine
+        const pipes = [];
+        const pipeWidth = 64;
+        const pipeGap = 165; // Vertical space between top and bottom pillars
+        let pipeSpawnTimer = 0;
+
+        function spawnPipe() {
+            const minHeight = 70;
+            const groundHeight = 45;
+            const maxHeight = height - groundHeight - pipeGap - minHeight;
+            const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+            pipes.push({
+                x: width + 10,
+                top: topHeight,
+                bottom: height - groundHeight - (topHeight + pipeGap),
+                passed: false
+            });
+        }
+
+        function updatePipes() {
+            pipeSpawnTimer++;
+            // Spawn pipe roughly every 1.8 seconds (at 60fps)
+            if (pipeSpawnTimer >= 115) {
+                spawnPipe();
+                pipeSpawnTimer = 0;
+            }
+
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                const pipe = pipes[i];
+                pipe.x -= 2.2; // Move speed
+
+                // Score check when passing pipe
+                if (!pipe.passed && bunny.x > pipe.x + pipeWidth) {
+                    pipe.passed = true;
+                    score++;
+                    currentScoreEl.innerText = score;
+                    sound.playScore();
+                    createScoreSparkles(bunny.x, bunny.y);
+                }
+
+                // Collision Detection with Top/Bottom Pipes
+                const groundY = height - 45;
+                const bottomY = groundY - pipe.bottom;
+
+                // Box-Circle Collision logic
+                if (
+                    bunny.x + bunny.radius - 4 > pipe.x &&
+                    bunny.x - bunny.radius + 4 < pipe.x + pipeWidth
+                ) {
+                    if (bunny.y - bunny.radius + 4 < pipe.top || bunny.y + bunny.radius - 4 > bottomY) {
+                        takeDamage();
+                        if (lives > 0) {
+                            bunny.velocity = -4; // 살짝 튀어올라 장애물에 연속으로 끼이지 않게 함
+                        }
+                    }
+                }
+
+                // Remove off-screen pipes
+                if (pipe.x + pipeWidth < -20) {
+                    pipes.splice(i, 1);
+                }
+            }
+        }
+
+        function drawPipes() {
+            pipes.forEach(pipe => {
+                const groundY = height - 45;
+                const bottomY = groundY - pipe.bottom;
+
+                // Beige / Warm Cream Pillar Palette
+                const pillarBodyGradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + pipeWidth, 0);
+                pillarBodyGradient.addColorStop(0, '#e6d3b3');
+                pillarBodyGradient.addColorStop(0.3, '#f7ebd5');
+                pillarBodyGradient.addColorStop(0.8, '#ded0b4');
+                pillarBodyGradient.addColorStop(1, '#c2b090');
+
+                ctx.fillStyle = pillarBodyGradient;
+                ctx.strokeStyle = '#8c7355';
+                ctx.lineWidth = 3;
+
+                // --- Top Pipe Body ---
+                ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+                ctx.strokeRect(pipe.x, 0, pipeWidth, pipe.top);
+
+                // Top Pipe Decorative Cap
+                ctx.fillRect(pipe.x - 5, pipe.top - 22, pipeWidth + 10, 22);
+                ctx.strokeRect(pipe.x - 5, pipe.top - 22, pipeWidth + 10, 22);
+
+                // --- Bottom Pipe Body ---
+                ctx.fillRect(pipe.x, bottomY, pipeWidth, pipe.bottom);
+                ctx.strokeRect(pipe.x, bottomY, pipeWidth, pipe.bottom);
+
+                // Bottom Pipe Decorative Cap
+                ctx.fillRect(pipe.x - 5, bottomY, pipeWidth + 10, 22);
+                ctx.strokeRect(pipe.x - 5, bottomY, pipeWidth + 10, 22);
+            });
+        }
+
+        const particles = [];
+
+        function createJumpParticles(x, y) {
+            for (let i = 0; i < 6; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 15,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: Math.random() * 2 + 1,
+                    radius: Math.random() * 3 + 2,
+                    color: '#fbe4e8',
+                    alpha: 1,
+                    decay: 0.04
+                });
+            }
+        }
+
+        function createScoreSparkles(x, y) {
+            for (let i = 0; i < 12; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 4 + 2,
+                    color: Math.random() > 0.5 ? '#fde047' : '#f472b6',
+                    alpha: 1,
+                    decay: 0.03
+                });
+            }
+        }
+
+        function updateAndDrawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Background Stars / Glowing Magic Orbs
+        const magicStars = Array.from({ length: 25 }, () => ({
+            x: Math.random() * 400,
+            y: Math.random() * 500,
+            radius: Math.random() * 2 + 1,
+            alpha: Math.random(),
+            speed: Math.random() * 0.02 + 0.01
+        }));
+
+        function drawBackground() {
+            // 1. Sky Gradient (Mystical Deep Purple)
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, height);
+            skyGradient.addColorStop(0, '#130924');
+            skyGradient.addColorStop(0.5, '#2e1045');
+            skyGradient.addColorStop(0.85, '#521d59');
+            skyGradient.addColorStop(1, '#6b2663');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, width, height);
+
+            // 2. Twinkling Background Stars
+            magicStars.forEach(star => {
+                star.alpha += star.speed;
+                const currentAlpha = (Math.sin(star.alpha) + 1) / 2;
+                ctx.fillStyle = `rgba(243, 232, 255, ${currentAlpha * 0.7})`;
+                ctx.beginPath();
+                ctx.arc((star.x / 400) * width, (star.y / 640) * height, star.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 3. Silhouetted Magical Forest Trees (Far Background)
+            ctx.fillStyle = 'rgba(38, 14, 56, 0.6)';
+            for (let i = -20; i < width + 60; i += 70) {
+                ctx.beginPath();
+                ctx.arc(i, height - 80, 50, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 4. Silhouetted Forest Trees (Mid Background)
+            ctx.fillStyle = 'rgba(25, 8, 38, 0.85)';
+            for (let i = -10; i < width + 80; i += 90) {
+                ctx.beginPath();
+                ctx.arc(i, height - 60, 60, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 5. Ground Floor (Purple Magic Grass)
+            const groundY = height - 45;
+            ctx.fillStyle = '#1c082b';
+            ctx.fillRect(0, groundY, width, 45);
+
+            // Glowing Purple Top Turf Border
+            ctx.fillStyle = '#a855f7';
+            ctx.fillRect(0, groundY, width, 5);
+            ctx.fillStyle = '#d8b4fe';
+            ctx.fillRect(0, groundY + 5, width, 2);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, width, height);
+
+            drawBackground();
+
+            if (gameState === 'PLAYING') {
+                updatePipes();
+                bunny.update();
+
+                // Ground Collision Check
+                if (bunny.y + bunny.radius >= height - 45) {
+                    bunny.y = height - 45 - bunny.radius;
+                    takeDamage();
+                    if (lives > 0) {
+                        bunny.velocity = -5; // 바닥 충돌 시 위로 튕김
+                    }
+                }
+            } else if (gameState === 'START') {
+                // Gentle floating preview animation on start screen
+                bunny.y = height * 0.45 + Math.sin(Date.now() * 0.004) * 8;
+            }
+
+            drawPipes();
+            updateAndDrawParticles();
+            bunny.draw();
+
+            if (gameState !== 'GAMEOVER') {
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function startGame() {
+            sound.init();
+            gameState = 'PLAYING';
+            score = 0;
+            lives = 3;
+            invincibilityTimer = 0;
+            updateLivesDisplay();
+            currentScoreEl.innerText = '0';
+            pipes.length = 0;
+            particles.length = 0;
+            pipeSpawnTimer = 0;
+
+            bunny.reset();
+
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            hudScore.classList.remove('hidden');
+
+            bunny.flap();
+        }
+
+        function triggerGameOver() {
+            if (gameState === 'GAMEOVER') return;
+            gameState = 'GAMEOVER';
+
+            sound.playCrash();
+            cancelAnimationFrame(animationFrameId);
+
+            // High Score update
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('flappy_buddy_best', highScore.toString());
+            }
+
+            finalScoreEl.innerText = score;
+            bestScoreEl.innerText = highScore;
+
+            hudScore.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            gameOverScreen.classList.add('flex');
+        }
+
+        function restartGame() {
+            gameOverScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('flex');
+            startGame();
+            gameLoop();
+        }
+
+        function handleFlapInput(e) {
+            if (e) {
+                if (e.type === 'keydown' && e.code !== 'Space') return;
+                // Prevent scroll on Space bar
+                if (e.code === 'Space') e.preventDefault();
+            }
+
+            if (gameState === 'START') {
+                startGame();
+            } else if (gameState === 'PLAYING') {
+                bunny.flap();
+            }
+        }
+
+        // Event Bindings
+        window.addEventListener('keydown', handleFlapInput);
+        canvas.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            handleFlapInput(e);
+        });
+
+        startBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+
+        restartBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            restartGame();
+        });
+
+        soundToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sound.enabled = !sound.enabled;
+            soundToggleBtn.innerText = sound.enabled ? '🔊' : '🔇';
+            soundToggleBtn.classList.toggle('opacity-50', !sound.enabled);
+        });
+
+        // Window Load Initialization
+        window.onload = () => {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            bunny.reset();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
